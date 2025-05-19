@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WhatsApp CPaaS</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet" />
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        :root {
+            --primary-color: #075E54;
+            /* WhatsApp Green */
+            --primary-light: #DCF8C6;
+            /* Light green for sent messages */
+            --secondary-color: #128C7E;
+            --light-gray: #f0f0f0;
+            --border-color: #ddd;
+            --text-color: #333;
+            --text-light: #777;
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #fafafa;
+            /* Light background */
+        }
+
+        .header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 20px;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: red;
+            margin-right: 8px;
+        }
+
+        .status-dot.connected {
+            background-color: #25D366;
+        }
+
+        .app-container {
+            display: flex;
+            height: calc(100vh - 60px);
+        }
+
+        .sidebar {
+            width: 300px;
+            /* Wider sidebar */
+            border-right: 1px solid var(--border-color);
+            padding: 10px;
+            overflow-y: auto;
+            background-color: #fff;
+            /* Sidebar background */
+        }
+
+        .sidebar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 10px;
+        }
+
+        .sidebar-header span {
+            font-weight: bold;
+            color: var(--text-color);
+        }
+
+        .search-container {
+            margin-bottom: 10px;
+        }
+
+        .search-container input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            /* Rounded search bar */
+            font-size: 14px;
+            color: var(--text-color);
+        }
+
+        .chat-list {
+            overflow-y: auto;
+        }
+
+        .chat-list div {
+            padding: 10px;
+            cursor: pointer;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-color);
+            transition: background-color 0.2s ease;
+        }
+
+        .chat-list div:hover {
+            background-color: var(--light-gray);
+        }
+
+        .chat-list div.active {
+            background-color: var(--light-gray);
+            font-weight: bold;
+        }
+
+        .chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 10px;
+        }
+
+        .chat-placeholder {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--text-light);
+        }
+
+        .chat-placeholder i {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+
+        .chat-placeholder p {
+            font-size: 16px;
+        }
+
+        .chat-header {
+            display: none;
+            /* Initially hidden */
+            font-weight: bold;
+            margin-bottom: 10px;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chat-header-info {
+            display: flex;
+            align-items: center;
+        }
+
+        .chat-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: #aaa;
+            /* Placeholder avatar */
+            margin-right: 10px;
+        }
+
+        .chat-header-name {
+            font-size: 18px;
+            color: var(--text-color);
+        }
+
+        .chat-header-actions {
+            display: flex;
+        }
+
+        .action-button {
+            margin-left: 10px;
+            color: var(--text-light);
+            cursor: pointer;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            margin-bottom: 10px;
+            display: none;
+            /* Initially hidden */
+        }
+
+        .message {
+            padding: 10px 14px;
+            margin: 5px 0;
+            border-radius: 20px;
+            max-width: 80%;
+            clear: both;
+            /* Clear floats */
+        }
+
+        .message.sent {
+            background-color: var(--primary-light);
+            align-self: flex-end;
+            float: right;
+            /* Float to the right */
+            color: var(--text-color);
+            box-shadow: 0 1px 1px rgba(0, 0, 0, 0.05);
+        }
+
+        .message.received {
+            background-color: #fff;
+            align-self: flex-start;
+            float: left;
+            /* Float to the left */
+            color: var(--text-color);
+            box-shadow: 0 1px 1px rgba(0, 0, 0, 0.05);
+        }
+
+        .input-container {
+            display: flex;
+            border-top: 1px solid var(--border-color);
+            padding-top: 10px;
+            /* Initially hidden */
+            display: none;
+        }
+
+        .input-container textarea {
+            flex: 1;
+            padding: 10px;
+            resize: none;
+            border-radius: 20px;
+            border: 1px solid var(--border-color);
+            font-size: 14px;
+            color: var(--text-color);
+        }
+
+        .send-button {
+            background-color: var(--secondary-color);
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            margin-left: 10px;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        .send-button:hover {
+            background-color: var(--primary-color);
+        }
+
+        #broadcastButton {
+            cursor: pointer;
+            color: var(--secondary-color);
+            transition: color 0.2s ease;
+        }
+
+        #broadcastButton:hover {
+            color: var(--primary-color);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <h1>WhatsApp CPaaS</h1>
+        <div class="status-indicator">
+            <div class="status-dot" id="statusDot"></div>
+            <span id="connectionStatus">Disconnected</span>
+        </div>
+    </div>
+
+    <div class="app-container">
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <span>Chats</span>
+                <i class="fas fa-paper-plane" id="broadcastButton" title="Broadcast Message"></i>
+            </div>
+            <div class="search-container">
+                <input type="text" placeholder="Search or start new chat" id="searchInput">
+            </div>
+            <div class="chat-list" id="chatList">
+                </div>
+        </div>
+        <div class="chat-container" id="chatContainer">
+            <div class="chat-placeholder" id="chatPlaceholder">
+                <i class="fas fa-comments"></i>
+                <p>Select a chat to start messaging</p>
+            </div>
+
+            <div class="chat-header" id="chatHeader" style="display: none;">
+                <div class="chat-header-info">
+                    <div class="chat-avatar" id="headerChatAvatar"></div>
+                    <div class="chat-header-name" id="chatHeaderName"></div>
+                </div>
+                <div class="chat-header-actions">
+                    <div class="action-button"><i class="fas fa-search"></i></div>
+                    <div class="action-button"><i class="fas fa-ellipsis-v"></i></div>
+                </div>
+            </div>
+
+            <div class="chat-messages" id="chatMessages" style="display: none;">
+                </div>
+
+            <div class="input-container" id="inputContainer" style="display: none;">
+                <textarea class="message-input" id="messageInput" placeholder="Type a message"></textarea>
+                <div class="send-button" id="sendButton">
+                    <i class="fas fa-paper-plane"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        const chatList = document.getElementById('chatList');
+        const chatHeader = document.getElementById('chatHeader');
+        const chatMessages = document.getElementById('chatMessages');
+        const messageInput = document.getElementById('messageInput');
+        const sendButton = document.getElementById('sendButton');
+        const statusDot = document.getElementById('statusDot');
+        const connectionStatus = document.getElementById('connectionStatus');
+        const chatPlaceholder = document.getElementById('chatPlaceholder');
+        const inputContainer = document.getElementById('inputContainer');
+
+        let currentChat = null;
+        let allChats = [];
+
+        socket.on('connect', () => {
+            console.log('Connected to server');
+        });
+
+        socket.on('ready', () => {
+            statusDot.classList.add('connected');
+            connectionStatus.textContent = 'Connected';
+        });
+
+        socket.on('disconnected', (data) => {
+            console.log('disconnected' + data);
+            statusDot.classList.remove('connected');
+            connectionStatus.textContent = 'Disconnected';
+            alert(`Disconnected: ${data.reason}`);
+        });
+
+        socket.on('auth_failure', (data) => {
+            console.log('auth_failure' + data);
+            alert(`Authentication failed: ${data.message}`);
+            statusDot.classList.remove('connected');
+            connectionStatus.textContent = 'Disconnected';
+            alert(`Disconnected: ${data.reason}`);
+        });
+
+        socket.on('chats', (data) => {
+            console.log('chats' + data);
+            allChats = data.chats;
+            renderChatList();
+        });
+
+        socket.on('messages', (data) => {
+            console.log('messages' + data);
+            if (currentChat && data.chatId === currentChat.id) {
+                renderMessages(data.messages);
+            }
+        });
+
+        socket.on('message', (data) => {
+            console.log('message' + data);
+            if (currentChat && data.chatId === currentChat.id) {
+                appendMessage(data.message);
+            }
+        });
+
+        function renderChatList() {
+            chatList.innerHTML = '';
+            allChats.forEach(chat => {
+                const div = document.createElement('div');
+                div.textContent = chat.name || chat.id;
+                div.style.cursor = 'pointer';
+                div.style.padding = '10px';
+                div.classList.add('chat-item'); // Added class for styling
+                div.onclick = () => selectChat(chat);
+                chatList.appendChild(div);
+            });
+        }
+
+        function selectChat(chat) {
+            currentChat = chat;
+            chatHeader.style.display = "flex";
+            chatHeaderName.textContent = chat.name || chat.id;
+
+            // Show chat messages and input
+            chatMessages.style.display = "block";
+            inputContainer.style.display = "flex";
+            chatPlaceholder.style.display = "none";
+
+            chatMessages.innerHTML = '';
+            socket.emit('getMessages', {
+                chatId: chat.id
+            });
+
+            // Update active chat style
+            const chatItems = document.querySelectorAll('.chat-item');
+            chatItems.forEach(item => item.classList.remove('active'));
+            const selectedChat = Array.from(chatItems).find(item => item.textContent === (chat.name || chat.id));
+            if (selectedChat) {
+                selectedChat.classList.add('active');
+            }
+        }
+
+
+        function renderMessages(messages) {
+            chatMessages.innerHTML = '';
+            messages.forEach(m => appendMessage(m));
+            chatMessages.scrollTop = chatMessages.scrollHeight; // Scroll to bottom
+        }
+
+        function appendMessage(message) {
+            const div = document.createElement('div');
+            div.className = `message ${message.fromMe ? 'sent' : 'received'}`;
+            div.textContent = message.body;
+            chatMessages.appendChild(div);
+            chatMessages.scrollTop = chatMessages.scrollHeight; // Keep scrolling to bottom
+        }
+
+        sendButton.onclick = () => {
+            const text = messageInput.value.trim();
+            if (text && currentChat) {
+                socket.emit('sendMessage', {
+                    chatId: currentChat.id,
+                    message: text
+                });
+                messageInput.value = '';
+            }
+        };
+    </script>
+</body>
+
+</html>
