@@ -19,13 +19,12 @@ app.use(express.json());
 // Initialize WhatsApp client
 const client = new Client({
     puppeteer: {
-        headless: false,
+        headless: true,
         args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-gpu',
         '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
         '--no-first-run',
         '--no-zygote',
         '--single-process'
@@ -39,16 +38,13 @@ let messages = {};
 
 // WhatsApp client events
 client.on('qr', (qr) => {
-    console.log('QR Code received:', qr);
     qrcode.toDataURL(qr, (err, url) => {
         if (err) {
             console.error('QR Code generation error:', err);
             io.emit('error', { message: 'Failed to generate QR code' });
             return;
         }
-        console.log(url);
         io.emit('qr', { url });
-        console.log('QR Code generated and emitted to client');
     });
 });
 
@@ -183,6 +179,7 @@ io.on('connection', (socket) => {
             if (chat) {
                 try {
                     const chatMessages = await chat.fetchMessages({ limit: 50 });
+                    console.log(`Fetched ${chatMessages.length} messages for chat ${chatId}`);
                     messages[chatId] = chatMessages.map(msg => ({
                         id: msg.id.id,
                         body: msg.body,
