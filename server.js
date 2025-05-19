@@ -20,7 +20,16 @@ app.use(express.json());
 const client = new Client({
     puppeteer: {
         headless: false,
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
+        args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-gpu',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--single-process'
+    ]
     }
 });
 
