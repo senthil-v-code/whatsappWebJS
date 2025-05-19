@@ -345,6 +345,7 @@
             if (phoneNumber) {
                 // Format the number to include @c.us
                 const chatId = phoneNumber.replace(/[^\d]/g, '') + '@c.us';
+                console.log(chatId);
                 const newChat = {
                     id: chatId,
                     name: phoneNumber,
@@ -502,6 +503,7 @@
         }
 
         function appendMessage(message) {
+            
             const messagesContainer = document.getElementById('chatMessages');
             const messageElement = document.createElement('div');
             messageElement.classList.add('message');

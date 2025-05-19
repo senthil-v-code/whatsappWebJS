@@ -16,19 +16,21 @@ const io = socketIo(server);
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 
+let isClientReady = false;
+
 // Initialize WhatsApp client
 const client = new Client({
     puppeteer: {
         headless: true,
         args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-gpu',
-        '--disable-dev-shm-usage',
-        '--no-first-run',
-        '--no-zygote',
-        '--single-process'
-    ]
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-gpu',
+            '--disable-dev-shm-usage',
+            '--no-first-run',
+            '--no-zygote',
+            '--single-process'
+        ]
     }
 });
 
@@ -49,10 +51,11 @@ client.on('qr', (qr) => {
 });
 
 client.on('message_create', message => {
-	console.log(message.body);
+    console.log(message.body);
 });
 
 client.on('ready', () => {
+    isClientReady = true;
     console.log('WhatsApp client is ready');
     io.emit('ready');
 
@@ -72,6 +75,7 @@ client.on('auth_failure', (msg) => {
 client.on('disconnected', (reason) => {
     console.log('WhatsApp client disconnected:', reason);
     io.emit('disconnected', { reason });
+    isClientReady = false;
 });
 
 // Message handling
@@ -151,10 +155,10 @@ async function loadChats() {
 // Socket.io connection handling
 io.on('connection', (socket) => {
     console.log('🔌 New socket client connected');
-    if (client.info) {
+    if (isClientReady) {
         socket.emit('ready');
-
-        // Send existing chats and messages
+        
+        // Send existing chats
         const chatList = chats.map(chat => ({
             id: chat.id._serialized,
             name: chat.name,
@@ -163,8 +167,19 @@ io.on('connection', (socket) => {
             unreadCount: chat.unreadCount,
             lastMessage: chat.lastMessage ? chat.lastMessage.body : ''
         }));
-
+        
         socket.emit('chats', { chats: chatList });
+
+        // If there was an active chat before refresh, send its messages
+        if (socket.handshake.query.lastChatId) {
+            const lastChatId = socket.handshake.query.lastChatId;
+            if (messages[lastChatId]) {
+                socket.emit('messages', {
+                    chatId: lastChatId,
+                    messages: messages[lastChatId]
+                });
+            }
+        }
     }
 
     // Handle get messages request
@@ -253,6 +268,34 @@ io.on('connection', (socket) => {
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
+
+app.post('/api/send-message', async (req, res) => {
+    const { phone, message } = req.body;
+
+    if (!isClientReady) {
+        return res.status(503).json({ success: false, error: 'WhatsApp client is not ready yet' });
+    }
+
+    if (!phone || !message) {
+        return res.status(400).json({ success: false, error: 'phone and message are required' });
+    }
+
+    const chatId = `${phone}@c.us`;
+
+    try {
+        const isRegistered = await client.isRegisteredUser(chatId);
+        if (!isRegistered) {
+            return res.status(400).json({ success: false, error: 'Number is not on WhatsApp' });
+        }
+
+        await client.sendMessage(chatId, message);
+        return res.status(200).json({ success: true, message: 'Message sent successfully' });
+    } catch (error) {
+        console.error('Send message failed:', error);
+        return res.status(500).json({ success: false, error: 'Failed to send message', details: error.message });
+    }
+});
+
 
 // Start WhatsApp client
 client.initialize()
