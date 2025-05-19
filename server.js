@@ -20,6 +20,7 @@ let isClientReady = false;
 
 // Initialize WhatsApp client
 const client = new Client({
+    authStrategy: new LocalAuth(),
     puppeteer: {
         headless: true,
         args: [
@@ -221,6 +222,7 @@ io.on('connection', (socket) => {
         try {
             const chat = chats.find(c => c.id._serialized === chatId);
             if (chat) {
+                await client.isRegisteredUser(chatId);
                 await chat.sendMessage(message);
                 socket.emit('messageSent', { chatId, status: 'success' });
             } else {
