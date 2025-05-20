@@ -2,3 +2,4 @@ node_modules/
 package-lock.json
 .wwebjs_cache/
 .wwebjs_auth
+chrome

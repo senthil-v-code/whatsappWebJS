@@ -268,10 +268,42 @@
             overflow: hidden;
             text-overflow: ellipsis;
         }
+
+        /* Add inside your existing <style> tag */
+        .connection-status {
+            position: fixed;
+            top: 5px;
+            right: 20px;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 14px;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-icon {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .status-connected .status-icon {
+            background-color: #4CAF50;
+            box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+        }
+
+        .status-disconnected .status-icon {
+            background-color: #f44336;
+            box-shadow: 0 0 0 2px rgba(244, 67, 54, 0.2);
+        }
     </style>
 </head>
 
 <body>
+    <div id="connectionStatus" class="connection-status" style="display: none;"></div>
     <div class="blur-overlay" id="qrOverlay">
         <div class="qr-container">
             <h2>WhatsApp Web</h2>
@@ -490,6 +522,7 @@
 
                 // Append message immediately
                 appendMessage(messageObj);
+                loadChatMessages(currentChat.id);
 
                 // Send message to server
                 socket.emit('sendMessage', {
@@ -503,7 +536,7 @@
         }
 
         function appendMessage(message) {
-            
+
             const messagesContainer = document.getElementById('chatMessages');
             const messageElement = document.createElement('div');
             messageElement.classList.add('message');
@@ -618,6 +651,35 @@
                     item.style.display = 'none';
                 }
             });
+        });
+
+        // Add after const socket = io();
+        function updateConnectionStatus(isConnected) {
+            const statusEl = document.getElementById('connectionStatus');
+            statusEl.style.display = 'flex';
+
+            statusEl.innerHTML = `
+        <span class="status-icon"></span>
+        <span>${isConnected ? 'WhatsApp client is connected' : 'WhatsApp client is disconnected'}</span>
+    `;
+
+            statusEl.className = `connection-status ${isConnected ? 'status-connected' : 'status-disconnected'}`;
+        }
+
+        socket.on('connect', () => {
+            updateConnectionStatus(true);
+        });
+
+        socket.on('disconnect', () => {
+            updateConnectionStatus(false);
+        });
+
+        socket.on('ready', () => {
+            updateConnectionStatus(true);
+        });
+
+        socket.on('disconnected', () => {
+            updateConnectionStatus(false);
         });
     </script>
 </body>
